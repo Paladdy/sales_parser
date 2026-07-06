@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lead Demo — Landing Form</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 480px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+    p.sub { color: #64748b; margin-top: 0; }
+    form { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1.5rem; }
+    label { font-size: 0.875rem; font-weight: 500; }
+    input, textarea {
+      width: 100%;
+      padding: 0.625rem 0.75rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    button {
+      margin-top: 0.5rem;
+      padding: 0.75rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .msg { margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none; }
+    .msg.ok { display: block; background: #dcfce7; color: #166534; }
+    .msg.err { display: block; background: #fee2e2; color: #991b1b; }
+    .hint { font-size: 0.75rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>Заявка на консультацию</h1>
+  <p class="sub">Demo landing → n8n → Lead Enricher → CRM</p>
+
+  <form id="leadForm">
+    <div>
+      <label for="name">Имя *</label>
+      <input id="name" name="name" required placeholder="Иван">
+    </div>
+    <div>
+      <label for="phone">Телефон *</label>
+      <input id="phone" name="phone" required placeholder="+79991234567">
+    </div>
+    <div>
+      <label for="email">Email *</label>
+      <input id="email" name="email" type="email" required placeholder="ivan@logistics-de.ru">
+    </div>
+    <div>
+      <label for="website">Сайт</label>
+      <input id="website" name="website" placeholder="https://logistics-de.ru">
+      <span class="hint">Опционально. Для gmail/yandex укажите сайт компании.</span>
+    </div>
+    <div>
+      <label for="comment">Комментарий</label>
+      <textarea id="comment" name="comment" rows="3" placeholder="Нужна реклама для логистической компании"></textarea>
+    </div>
+    <button type="submit" id="submitBtn">Отправить</button>
+  </form>
+
+  <div id="msg" class="msg"></div>
+
+  <script>
+    // Must match N8N_HOST_PORT in .env (default 15678)
+    const WEBHOOK_URL = 'http://localhost:15678/webhook/new-lead';
+
+    document.getElementById('leadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      const msg = document.getElementById('msg');
+      btn.disabled = true;
+      msg.className = 'msg';
+      msg.textContent = '';
+
+      const payload = {
+        name: document.getElementById('name').value,
+        phone: document.getElementById('phone').value,
+        email: document.getElementById('email').value,
+        website: document.getElementById('website').value || undefined,
+        comment: document.getElementById('comment').value || undefined,
+        utm_source: 'demo_form',
+      };
+
+      try {
+        const resp = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        msg.className = 'msg ok';
+        msg.textContent = 'Спасибо! Заявка принята. Менеджер свяжется с вами.';
+        e.target.reset();
+      } catch (err) {
+        msg.className = 'msg err';
+        msg.textContent = 'Ошибка отправки. Проверьте, что n8n запущен и workflow активирован.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

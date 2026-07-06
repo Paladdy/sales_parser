@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: lead
+      POSTGRES_PASSWORD: lead
+      POSTGRES_DB: lead_enricher
+    ports:
+      - "${POSTGRES_HOST_PORT:-55433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lead -d lead_enricher"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  lead-enricher:
+    build:
+      context: ./services/lead-enricher
+    ports:
+      - "${ENRICHER_HOST_PORT:-18080}:8080"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://lead:lead@postgres:5432/lead_enricher
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./services/lead-enricher/tests/fixtures:/app/tests/fixtures:ro
+
+  n8n:
+    image: n8nio/n8n:latest
+    ports:
+      - "${N8N_HOST_PORT:-15678}:5678"
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:${N8N_HOST_PORT:-15678}/
+      GENERIC_TIMEZONE: Europe/Moscow
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: lead_enricher
+      DB_POSTGRESDB_USER: lead
+      DB_POSTGRESDB_PASSWORD: lead
+    depends_on:
+      postgres:
+        condition: service_healthy
+      lead-enricher:
+        condition: service_started
+
+volumes:
+  postgres_data:
